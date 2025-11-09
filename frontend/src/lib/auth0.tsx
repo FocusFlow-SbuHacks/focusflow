@@ -4,7 +4,8 @@ import { ReactNode } from 'react';
 const domain = import.meta.env.VITE_AUTH0_DOMAIN || 'dev-dpqkca4rwoqa3qlp.us.auth0.com';
 const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID || 'HJJiMaA5REw1kBVzH0T1FfEY5AUnnMxA';
 const audience = import.meta.env.VITE_AUTH0_AUDIENCE;
-const redirectUri = import.meta.env.VITE_AUTH0_REDIRECT_URI || window.location.origin;
+// Auth0 expects the callback URL to be at /callback
+const redirectUri = import.meta.env.VITE_AUTH0_REDIRECT_URI || `${window.location.origin}/callback`;
 
 interface Auth0ProviderProps {
   children: ReactNode;
