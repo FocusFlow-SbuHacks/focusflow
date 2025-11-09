@@ -55,6 +55,17 @@ class FocusPredictor:
 
 predictor = FocusPredictor()
 
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        'status': 'ok',
+        'message': 'FocusFlow ML Service',
+        'endpoints': {
+            'health': '/health',
+            'predict': '/predict (POST)'
+        }
+    })
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
