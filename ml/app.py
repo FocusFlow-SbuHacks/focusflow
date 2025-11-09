@@ -20,21 +20,39 @@ class FocusPredictor:
         # More tab switches = worse focus
         self.weights = {
             'typing_speed': 0.3,  # Positive impact
-            'idle_time': -0.5,    # Negative impact
-            'tab_switches': -0.2  # Negative impact
+            'idle_time': -1.0,    # Negative impact (increased from -0.5)
+            'tab_switches': -0.3  # Negative impact (increased from -0.2)
         }
         self.baseline_score = 75
     
     def predict(self, typing_speed, idle_time, tab_switches):
         # Normalize inputs
         normalized_typing = min(typing_speed / 60, 1.0)  # Assume 60 WPM is max
-        normalized_idle = min(idle_time / 60, 1.0)  # 60 seconds max idle
+        
+        # Idle time: use a more aggressive normalization
+        # After 30 seconds, start heavily penalizing
+        # Cap at 120 seconds for normalization, but allow higher values
+        if idle_time <= 30:
+            normalized_idle = idle_time / 30  # 0 to 1 for 0-30 seconds
+        else:
+            # After 30 seconds, increase penalty more aggressively
+            normalized_idle = 1.0 + (idle_time - 30) / 30  # 1.0 to 4.0 for 30-120 seconds
+        
         normalized_tabs = min(tab_switches / 10, 1.0)  # 10 switches max
         
         # Calculate score
         score = self.baseline_score
         score += normalized_typing * 20 * self.weights['typing_speed']
-        score += normalized_idle * 30 * self.weights['idle_time']
+        
+        # Apply idle time penalty (more aggressive)
+        if normalized_idle <= 1.0:
+            # 0-30 seconds: moderate penalty
+            score += normalized_idle * 25 * self.weights['idle_time']
+        else:
+            # 30+ seconds: heavy penalty
+            score += 25 * self.weights['idle_time']  # Base penalty for 30 seconds
+            score += (normalized_idle - 1.0) * 40 * self.weights['idle_time']  # Additional heavy penalty
+        
         score += normalized_tabs * 15 * self.weights['tab_switches']
         
         # Clamp between 0 and 100

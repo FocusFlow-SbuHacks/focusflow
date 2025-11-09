@@ -78,15 +78,40 @@ export const useFocusTracking = (isActive: boolean, onDataUpdate?: (metrics: Foc
       return;
     }
 
+    let lastActivityTime = Date.now();
+    let mouseMoveThrottle = 0;
+
     const handleActivity = () => {
+      lastActivityTime = Date.now();
       idleStartTimeRef.current = null;
+      // Reset idle time immediately when activity detected
+      setMetrics(prev => {
+        const updated = { ...prev, idleTime: 0 };
+        metricsRef.current = updated;
+        return updated;
+      });
+    };
+
+    // Only track meaningful mouse movements (throttled)
+    const handleMouseMove = () => {
+      mouseMoveThrottle++;
+      // Only count mouse movement as activity every 10th movement
+      // This prevents tiny movements from resetting idle time
+      if (mouseMoveThrottle >= 10) {
+        handleActivity();
+        mouseMoveThrottle = 0;
+      }
     };
 
     const checkIdle = () => {
       const now = Date.now();
-      if (idleStartTimeRef.current === null) {
-        idleStartTimeRef.current = now;
-      } else {
+      const timeSinceLastActivity = (now - lastActivityTime) / 1000; // seconds
+      
+      if (timeSinceLastActivity > 1) {
+        // User is idle
+        if (idleStartTimeRef.current === null) {
+          idleStartTimeRef.current = lastActivityTime;
+        }
         const idleSeconds = Math.floor((now - idleStartTimeRef.current) / 1000);
         setMetrics(prev => {
           const updated = { ...prev, idleTime: idleSeconds };
@@ -98,8 +123,8 @@ export const useFocusTracking = (isActive: boolean, onDataUpdate?: (metrics: Foc
 
     window.addEventListener('keydown', handleActivity);
     window.addEventListener('mousedown', handleActivity);
-    window.addEventListener('mousemove', handleActivity);
     window.addEventListener('scroll', handleActivity);
+    window.addEventListener('mousemove', handleMouseMove);
 
     const idleInterval = setInterval(checkIdle, 1000);
     
@@ -107,7 +132,7 @@ export const useFocusTracking = (isActive: boolean, onDataUpdate?: (metrics: Foc
       clearInterval(idleInterval);
       window.removeEventListener('keydown', handleActivity);
       window.removeEventListener('mousedown', handleActivity);
-      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('scroll', handleActivity);
     };
   }, [isActive]);
