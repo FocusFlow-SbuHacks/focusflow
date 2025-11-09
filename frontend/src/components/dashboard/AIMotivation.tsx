@@ -23,15 +23,32 @@ export const AIMotivation = ({ message, voiceUrl }: AIMotivationProps) => {
 
   const handlePlayVoice = () => {
     if (voiceUrl) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      const audio = new Audio(voiceUrl);
-      audioRef.current = audio;
-      audio.play().catch(err => {
-        console.error("Error playing audio:", err);
+      try {
+        // Stop any currently playing audio
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        
+        // Create new audio element
+        const audio = new Audio(voiceUrl);
+        audioRef.current = audio;
+        
+        // Handle errors
+        audio.onerror = (e) => {
+          console.error("Audio playback error:", e);
+          toast.error("Could not play voice message. The audio format may not be supported.");
+        };
+        
+        // Play audio
+        audio.play().catch(err => {
+          console.error("Error playing audio:", err);
+          toast.error("Could not play voice message. Please check your browser's audio permissions.");
+        });
+      } catch (error) {
+        console.error("Error setting up audio:", error);
         toast.error("Could not play voice message");
-      });
+      }
     } else {
       toast.info("No voice message available");
     }
@@ -45,17 +62,31 @@ export const AIMotivation = ({ message, voiceUrl }: AIMotivationProps) => {
       <div className="space-y-4">
         <div>
           <h3 className="mb-2 text-sm font-semibold text-primary">AI Motivation</h3>
-          <p className="text-sm leading-relaxed text-foreground">{message}</p>
+          <p className="text-sm leading-relaxed text-foreground">
+            {displayMessage}
+          </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handlePlayVoice}
-          className="w-full gap-2"
-        >
-          <Volume2 className="h-4 w-4" />
-          Play Voice
-        </Button>
+        {voiceUrl ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePlayVoice}
+            className="w-full gap-2"
+          >
+            <Volume2 className="h-4 w-4" />
+            Play Voice
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            className="w-full gap-2"
+          >
+            <Volume2 className="h-4 w-4" />
+            No Voice Available
+          </Button>
+        )}
       </div>
     </Card>
   );

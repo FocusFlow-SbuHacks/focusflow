@@ -1,5 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+export interface EmailNotifications {
+  enabled: boolean;
+  focusDropAlerts: boolean;
+  sessionSummaries: boolean;
+  weeklyReports: boolean;
+}
+
 export interface User {
   _id: string;
   auth0Id: string;
@@ -8,11 +15,22 @@ export interface User {
   picture?: string;
   totalSessions: number;
   totalFocusTime: number;
+  emailNotifications?: EmailNotifications;
 }
 
 export interface FocusData {
   focusScore: number;
   focusLabel: 'Focused' | 'Losing Focus' | 'Distracted';
+  aiMessage?: string;
+  voiceUrl?: string;
+}
+
+export interface FocusDataPoint {
+  timestamp: string;
+  typingSpeed: number;
+  idleTime: number;
+  tabSwitches: number;
+  focusScore: number;
   aiMessage?: string;
   voiceUrl?: string;
 }
@@ -27,6 +45,7 @@ export interface FocusSession {
   maxFocusScore: number;
   minFocusScore: number;
   status: 'active' | 'completed' | 'paused' | 'cancelled';
+  focusDataPoints?: FocusDataPoint[];
 }
 
 class ApiClient {
@@ -138,6 +157,14 @@ class ApiClient {
 
   async getSession(sessionId: string): Promise<FocusSession> {
     return this.request<FocusSession>(`/sessions/${sessionId}`);
+  }
+
+  // User preferences
+  async updateUserPreferences(userId: string, preferences: { emailNotifications?: EmailNotifications }) {
+    return this.request<User>(`/auth/user/${userId}/preferences`, {
+      method: 'PATCH',
+      body: JSON.stringify(preferences),
+    });
   }
 }
 

@@ -4,9 +4,10 @@ const FocusData = require('../models/FocusData');
 const FocusSession = require('../models/FocusSession');
 const User = require('../models/User');
 const axios = require('axios');
+const { sendFocusDropAlert } = require('../utils/emailService');
 
 // ML Service URL (Python Flask)
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
 
 // OpenRouter API
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -173,6 +174,13 @@ router.post('/track', async (req, res) => {
       console.log('🔄 Updating session with focus data point...');
       const session = await FocusSession.findById(sessionId);
       if (session) {
+        // Get previous focus score to detect drastic drops
+        let previousScore = focusScore;
+        if (session.focusDataPoints && session.focusDataPoints.length > 0) {
+          const lastPoint = session.focusDataPoints[session.focusDataPoints.length - 1];
+          previousScore = lastPoint.focusScore;
+        }
+
         const dataPoint = {
           timestamp: new Date(),
           typingSpeed: typingSpeed || 0,
@@ -194,6 +202,24 @@ router.post('/track', async (req, res) => {
 
         await session.save();
         console.log('✅ Session updated with new focus data point');
+
+        // Check for drastic focus drop (20+ points) and send email notification
+        const dropAmount = previousScore - focusScore;
+        if (dropAmount >= 20 && previousScore > focusScore) {
+          console.log(`📉 Detected drastic focus drop: ${previousScore} → ${focusScore} (${dropAmount} points)`);
+          
+          try {
+            const user = await User.findById(userId);
+            if (user) {
+              // Send email notification asynchronously (don't block the response)
+              sendFocusDropAlert(user, previousScore, focusScore, dropAmount).catch(err => {
+                console.error('Failed to send focus drop alert email:', err);
+              });
+            }
+          } catch (error) {
+            console.error('Error checking user for email notification:', error);
+          }
+        }
       } else {
         console.warn('⚠️ Session not found:', sessionId);
       }
@@ -229,7 +255,7 @@ router.get('/history/:userId', async (req, res) => {
     const data = await FocusData.find(query)
       .sort({ timestamp: -1 })
       .limit(parseInt(limit))
-      .select('timestamp typingSpeed idleTime tabSwitches focusScore focusLabel');
+      .select('timestamp typingSpeed idleTime tabSwitches focusScore focusLabel aiMessage voiceUrl');
 
     res.json(data);
   } catch (error) {

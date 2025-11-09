@@ -1,0 +1,81 @@
+# Render Blueprint for FocusFlow
+# This file allows you to deploy all services at once
+# Go to: https://dashboard.render.com/blueprints
+
+services:
+  # Backend API Service
+  - type: web
+    name: focusflow-backend
+    env: node
+    region: oregon  # Change to your preferred region
+    plan: free  # Change to 'starter' for paid tier
+    buildCommand: npm install
+    startCommand: npm start
+    rootDir: backend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false  # Set this manually in Render dashboard
+      - key: ML_SERVICE_URL
+        sync: false  # Will be set after ML service is deployed
+      - key: AUTH0_DOMAIN
+        sync: false
+      - key: AUTH0_CLIENT_ID
+        sync: false
+      - key: AUTH0_CLIENT_SECRET
+        sync: false
+      - key: AUTH0_BASE_URL
+        sync: false
+      - key: AUTH0_SECRET
+        generateValue: true
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+        optional: true
+      - key: ELEVENLABS_API_KEY
+        sync: false
+        optional: true
+      - key: ELEVENLABS_VOICE_ID
+        value: 21m00Tcm4TlvDq8ikWAM
+        optional: true
+
+  # ML Service
+  - type: web
+    name: focusflow-ml
+    env: python
+    region: oregon  # Same region as backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    rootDir: ml
+    envVars:
+      - key: PORT
+        value: 10000
+
+  # Frontend Static Site
+  - type: static
+    name: focusflow-frontend
+    region: oregon
+    buildCommand: npm install && npm run build
+    staticPublishPath: frontend/dist
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_URL
+        sync: false  # Set to backend URL after deployment
+      - key: VITE_AUTH0_DOMAIN
+        sync: false
+      - key: VITE_AUTH0_CLIENT_ID
+        sync: false
+      - key: VITE_AUTH0_AUDIENCE
+        sync: false
+

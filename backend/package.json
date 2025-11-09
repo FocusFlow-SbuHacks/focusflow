@@ -25,6 +25,7 @@
     "express": "^5.1.0",
     "express-openid-connect": "^2.19.2",
     "mongoose": "^8.19.3",
+    "nodemailer": "^7.0.10",
     "nodemon": "^3.1.10"
   }
 }

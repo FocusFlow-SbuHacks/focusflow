@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "@/components/Navigation";
-import { User, Mail, Bell, Shield } from "lucide-react";
+import { User, Mail, Shield } from "lucide-react";
 import { useAuth0 } from "@/lib/auth0";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
-import type { User as DbUser } from "@/lib/api";
+import type { User as DbUser, EmailNotifications } from "@/lib/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -23,8 +23,12 @@ const Profile = () => {
   const { user: auth0User, isAuthenticated, isLoading } = useAuth0();
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(false);
+  const [emailPrefs, setEmailPrefs] = useState<EmailNotifications>({
+    enabled: true,
+    focusDropAlerts: true,
+    sessionSummaries: false,
+    weeklyReports: false,
+  });
 
   useEffect(() => {
     if (!isAuthenticated || !auth0User || isLoading) return;
@@ -38,6 +42,9 @@ const Profile = () => {
           auth0User.picture
         );
         setDbUser(userData);
+        if (userData.emailNotifications) {
+          setEmailPrefs(userData.emailNotifications);
+        }
       } catch (error) {
         console.error("Error loading user data:", error);
       } finally {
@@ -110,14 +117,16 @@ const Profile = () => {
             <div className="space-y-4">
               <Dialog>
                 <DialogTrigger asChild>
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
-                    <Mail className="h-5 w-5 text-primary" />
-                    <div className="flex-1">
+                  <Button variant="ghost" className="w-full justify-start p-4 h-auto hover:bg-muted">
+                    <div className="flex items-center gap-3 w-full">
+                      <Mail className="h-5 w-5 text-primary" />
+                      <div className="flex-1 text-left">
                       <p className="font-medium">Email Notifications</p>
-                      <p className="text-sm text-muted-foreground">Receive session summaries</p>
+                      <p className="text-sm text-muted-foreground">Get alerts when your focus drops</p>
+                      </div>
+                      <span className="text-sm text-muted-foreground">Configure</span>
                     </div>
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>Configure</Button>
-                  </div>
+                  </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
@@ -129,6 +138,57 @@ const Profile = () => {
                   <div className="space-y-4 py-4">
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
+                        <Label htmlFor="email-enabled">Email Notifications</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Enable or disable all email notifications
+                        </p>
+                      </div>
+                      <Switch
+                        id="email-enabled"
+                        checked={emailPrefs.enabled}
+                        onCheckedChange={async (checked) => {
+                          const newPrefs = { ...emailPrefs, enabled: checked };
+                          setEmailPrefs(newPrefs);
+                          if (dbUser) {
+                            try {
+                              await apiClient.updateUserPreferences(dbUser._id, { emailNotifications: newPrefs });
+                              toast.success(checked ? "Email notifications enabled" : "Email notifications disabled");
+                            } catch (error) {
+                              console.error("Error updating preferences:", error);
+                              toast.error("Failed to update preferences");
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="email-focus-drop">Focus Drop Alerts</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Get notified when your focus score drops drastically
+                        </p>
+                      </div>
+                      <Switch
+                        id="email-focus-drop"
+                        checked={emailPrefs.focusDropAlerts}
+                        disabled={!emailPrefs.enabled}
+                        onCheckedChange={async (checked) => {
+                          const newPrefs = { ...emailPrefs, focusDropAlerts: checked };
+                          setEmailPrefs(newPrefs);
+                          if (dbUser) {
+                            try {
+                              await apiClient.updateUserPreferences(dbUser._id, { emailNotifications: newPrefs });
+                              toast.success(checked ? "Focus drop alerts enabled" : "Focus drop alerts disabled");
+                            } catch (error) {
+                              console.error("Error updating preferences:", error);
+                              toast.error("Failed to update preferences");
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
                         <Label htmlFor="email-session-summary">Session Summaries</Label>
                         <p className="text-sm text-muted-foreground">
                           Receive email summaries after each focus session
@@ -136,10 +196,20 @@ const Profile = () => {
                       </div>
                       <Switch
                         id="email-session-summary"
-                        checked={emailNotifications}
-                        onCheckedChange={(checked) => {
-                          setEmailNotifications(checked);
-                          toast.success(checked ? "Email notifications enabled" : "Email notifications disabled");
+                        checked={emailPrefs.sessionSummaries}
+                        disabled={!emailPrefs.enabled}
+                        onCheckedChange={async (checked) => {
+                          const newPrefs = { ...emailPrefs, sessionSummaries: checked };
+                          setEmailPrefs(newPrefs);
+                          if (dbUser) {
+                            try {
+                              await apiClient.updateUserPreferences(dbUser._id, { emailNotifications: newPrefs });
+                              toast.success(checked ? "Session summaries enabled" : "Session summaries disabled");
+                            } catch (error) {
+                              console.error("Error updating preferences:", error);
+                              toast.error("Failed to update preferences");
+                            }
+                          }
                         }}
                       />
                     </div>
@@ -152,85 +222,19 @@ const Profile = () => {
                       </div>
                       <Switch
                         id="email-weekly-report"
-                        checked={emailNotifications}
-                        onCheckedChange={(checked) => {
-                          setEmailNotifications(checked);
-                          toast.success(checked ? "Weekly reports enabled" : "Weekly reports disabled");
-                        }}
-                      />
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog>
-                <DialogTrigger asChild>
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
-                    <Bell className="h-5 w-5 text-primary" />
-                    <div className="flex-1">
-                      <p className="font-medium">Push Notifications</p>
-                      <p className="text-sm text-muted-foreground">Get focus reminders</p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>Configure</Button>
-                  </div>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Push Notifications</DialogTitle>
-                    <DialogDescription>
-                      Manage your browser notification preferences
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="push-focus-reminders">Focus Reminders</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Get notified when your focus drops
-                        </p>
-                      </div>
-                      <Switch
-                        id="push-focus-reminders"
-                        checked={pushNotifications}
+                        checked={emailPrefs.weeklyReports}
+                        disabled={!emailPrefs.enabled}
                         onCheckedChange={async (checked) => {
-                          if (checked) {
-                            // Request notification permission
-                            const permission = await Notification.requestPermission();
-                            if (permission === 'granted') {
-                              setPushNotifications(true);
-                              toast.success("Push notifications enabled");
-                            } else {
-                              toast.error("Notification permission denied");
+                          const newPrefs = { ...emailPrefs, weeklyReports: checked };
+                          setEmailPrefs(newPrefs);
+                          if (dbUser) {
+                            try {
+                              await apiClient.updateUserPreferences(dbUser._id, { emailNotifications: newPrefs });
+                              toast.success(checked ? "Weekly reports enabled" : "Weekly reports disabled");
+                            } catch (error) {
+                              console.error("Error updating preferences:", error);
+                              toast.error("Failed to update preferences");
                             }
-                          } else {
-                            setPushNotifications(false);
-                            toast.success("Push notifications disabled");
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="push-session-alerts">Session Alerts</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Get notified when sessions start and end
-                        </p>
-                      </div>
-                      <Switch
-                        id="push-session-alerts"
-                        checked={pushNotifications}
-                        onCheckedChange={async (checked) => {
-                          if (checked) {
-                            const permission = await Notification.requestPermission();
-                            if (permission === 'granted') {
-                              setPushNotifications(true);
-                              toast.success("Session alerts enabled");
-                            } else {
-                              toast.error("Notification permission denied");
-                            }
-                          } else {
-                            setPushNotifications(false);
-                            toast.success("Session alerts disabled");
                           }
                         }}
                       />

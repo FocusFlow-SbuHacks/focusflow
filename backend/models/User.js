@@ -33,6 +33,24 @@ const userSchema = new mongoose.Schema({
   totalFocusTime: {
     type: Number,
     default: 0 // in minutes
+  },
+  emailNotifications: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    focusDropAlerts: {
+      type: Boolean,
+      default: true
+    },
+    sessionSummaries: {
+      type: Boolean,
+      default: false
+    },
+    weeklyReports: {
+      type: Boolean,
+      default: false
+    }
   }
 });
 

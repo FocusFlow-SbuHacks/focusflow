@@ -49,5 +49,33 @@ router.get('/user/:auth0Id', async (req, res) => {
   }
 });
 
+// Update user preferences
+router.patch('/user/:userId/preferences', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { emailNotifications } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (emailNotifications) {
+      user.emailNotifications = {
+        enabled: emailNotifications.enabled !== undefined ? emailNotifications.enabled : (user.emailNotifications?.enabled ?? true),
+        focusDropAlerts: emailNotifications.focusDropAlerts !== undefined ? emailNotifications.focusDropAlerts : (user.emailNotifications?.focusDropAlerts ?? true),
+        sessionSummaries: emailNotifications.sessionSummaries !== undefined ? emailNotifications.sessionSummaries : (user.emailNotifications?.sessionSummaries ?? false),
+        weeklyReports: emailNotifications.weeklyReports !== undefined ? emailNotifications.weeklyReports : (user.emailNotifications?.weeklyReports ?? false),
+      };
+    }
+
+    await user.save();
+    res.json(user);
+  } catch (error) {
+    console.error('Error updating user preferences:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
 

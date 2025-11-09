@@ -30,6 +30,8 @@ const Index = () => {
   const [avgFocus, setAvgFocus] = useState("--");
   const [bestHour, setBestHour] = useState("--");
   const [sessionCount, setSessionCount] = useState(0);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
 
   // Poll for active session updates to get latest focus score
   useEffect(() => {
@@ -42,6 +44,19 @@ const Index = () => {
           // Get the latest focus score from the most recent data point
           const latestPoint = updatedSession.focusDataPoints[updatedSession.focusDataPoints.length - 1];
           setFocusScore(latestPoint.focusScore);
+          
+          // Find the most recent data point with AI message
+          const withMessage = [...updatedSession.focusDataPoints].reverse().find((p: any) => p.aiMessage);
+          if (withMessage?.aiMessage) {
+            setAiMessage(withMessage.aiMessage);
+          }
+          
+          // Find the most recent data point with voice URL
+          const withVoice = [...updatedSession.focusDataPoints].reverse().find((p: any) => p.voiceUrl);
+          if (withVoice?.voiceUrl) {
+            setVoiceUrl(withVoice.voiceUrl);
+          }
+          
           setActiveSession(updatedSession);
         }
       } catch (error) {
@@ -78,8 +93,44 @@ const Index = () => {
           if (session.focusDataPoints && session.focusDataPoints.length > 0) {
             const latestPoint = session.focusDataPoints[session.focusDataPoints.length - 1];
             setFocusScore(latestPoint.focusScore);
+            
+            // Find the most recent data point with AI message
+            const withMessage = [...session.focusDataPoints].reverse().find((p: any) => p.aiMessage);
+            if (withMessage?.aiMessage) {
+              setAiMessage(withMessage.aiMessage);
+            }
+            
+            // Find the most recent data point with voice URL
+            const withVoice = [...session.focusDataPoints].reverse().find((p: any) => p.voiceUrl);
+            if (withVoice?.voiceUrl) {
+              setVoiceUrl(withVoice.voiceUrl);
+            }
           } else if (session.averageFocusScore > 0) {
             setFocusScore(Math.round(session.averageFocusScore));
+          }
+        } else {
+          // No active session - get latest focus score from history
+          try {
+            // Get more history to find one with AI message/voice
+            const focusHistory = await apiClient.getFocusHistory(userData._id, undefined, undefined, 10);
+            if (focusHistory && focusHistory.length > 0) {
+              const latest = focusHistory[0];
+              setFocusScore(latest.focusScore || 75);
+              
+              // Find the most recent entry with AI message
+              const withMessage = focusHistory.find((entry: any) => entry.aiMessage);
+              if (withMessage?.aiMessage) {
+                setAiMessage(withMessage.aiMessage);
+              }
+              
+              // Find the most recent entry with voice URL
+              const withVoice = focusHistory.find((entry: any) => entry.voiceUrl);
+              if (withVoice?.voiceUrl) {
+                setVoiceUrl(withVoice.voiceUrl);
+              }
+            }
+          } catch (error) {
+            console.warn("Could not load latest focus score:", error);
           }
         }
 
@@ -233,7 +284,7 @@ const Index = () => {
               </div>
             </div>
 
-            <AIMotivation />
+            <AIMotivation message={aiMessage || undefined} voiceUrl={voiceUrl || undefined} />
           </div>
 
           {/* Center Column - Focus Gauge */}
