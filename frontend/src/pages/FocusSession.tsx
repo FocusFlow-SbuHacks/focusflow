@@ -25,6 +25,7 @@ const FocusSession = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [dbUser, setDbUser] = useState<User | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [liveMetrics, setLiveMetrics] = useState({ typingSpeed: 0, idleTime: 0, tabSwitches: 0 });
 
   // Initialize user and session
   useEffect(() => {
@@ -48,9 +49,25 @@ const FocusSession = () => {
         // Get or create active session
         let activeSession = await apiClient.getActiveSession(userData._id);
         if (!activeSession) {
-          activeSession = await apiClient.createSession(userData._id);
+          // If no active session, redirect to dashboard to set up
+          navigate("/");
+          return;
         }
         setSession(activeSession);
+        // Set timer based on session duration or default to 25 minutes
+        // Note: duration in session is total duration, but we need timeLeft for countdown
+        // If session was just created, use the duration from creation
+        // Otherwise, calculate remaining time
+        if (activeSession.duration && activeSession.duration > 0) {
+          const sessionStartTime = new Date(activeSession.startTime).getTime();
+          const now = Date.now();
+          const elapsed = Math.floor((now - sessionStartTime) / 1000);
+          const remaining = Math.max(0, activeSession.duration - elapsed);
+          setTimeLeft(remaining);
+        } else {
+          // Default to 25 minutes if no duration set
+          setTimeLeft(25 * 60);
+        }
       } catch (error) {
         console.error("Error initializing session:", error);
         toast.error("Failed to start session");
@@ -64,6 +81,9 @@ const FocusSession = () => {
   const handleFocusDataUpdate = useCallback(async (metrics: { typingSpeed: number; idleTime: number; tabSwitches: number }) => {
     console.log("🔄 handleFocusDataUpdate called with:", metrics);
     console.log("🔄 Current state:", { userId, session: session?._id, isRunning });
+    
+    // Update live metrics immediately
+    setLiveMetrics(metrics);
     
     if (!userId || !session) {
       console.warn("⚠️ Focus tracking skipped: userId or session missing", { userId, session: !!session });
@@ -161,9 +181,33 @@ const FocusSession = () => {
     if (!session) return;
 
     try {
-      await apiClient.endSession(session._id);
-      const finalScore = focusScore;
-      navigate(`/?session=ended&score=${finalScore}`);
+      const endedSession = await apiClient.endSession(session._id);
+      // Use average focus score from session, not current score
+      const finalScore = Math.round(endedSession.averageFocusScore || focusScore);
+      
+      // Calculate total idle time from session data points
+      let totalIdleTime = 0;
+      if (endedSession.focusDataPoints && endedSession.focusDataPoints.length > 0) {
+        // Get the maximum idle time (not sum, as idle time is cumulative)
+        totalIdleTime = Math.max(...endedSession.focusDataPoints.map(p => p.idleTime || 0));
+      }
+      
+      // Get last AI message
+      const lastAiMessage = endedSession.focusDataPoints && endedSession.focusDataPoints.length > 0
+        ? endedSession.focusDataPoints[endedSession.focusDataPoints.length - 1]?.aiMessage
+        : aiMessage;
+      
+      const params = new URLSearchParams({
+        session: "ended",
+        score: finalScore.toString(),
+      });
+      
+      if (endedSession.task) params.set("task", endedSession.task);
+      if (endedSession.duration) params.set("duration", endedSession.duration.toString());
+      if (totalIdleTime) params.set("idleTime", totalIdleTime.toString());
+      if (lastAiMessage) params.set("aiMessage", lastAiMessage);
+      
+      navigate(`/?${params.toString()}`);
     } catch (error) {
       console.error("Error ending session:", error);
       toast.error("Error ending session");
@@ -198,6 +242,9 @@ const FocusSession = () => {
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold">Focus Session Active</h1>
             <p className="text-muted-foreground">Stay focused and track your progress</p>
+            {session?.task && (
+              <p className="text-lg font-medium text-primary">Task: {session.task}</p>
+            )}
           </div>
 
           <Card className="p-8">
@@ -207,6 +254,39 @@ const FocusSession = () => {
               onPause={handlePause}
               onEnd={handleEndSession}
             />
+          </Card>
+
+          {/* Live Metrics */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Live Metrics</h3>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Typing Activity</p>
+                <p className="text-2xl font-bold">
+                  {liveMetrics.typingSpeed > 0 ? "Active" : "Idle"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {liveMetrics.typingSpeed} keys/min
+                </p>
+              </div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Tab Switches</p>
+                <p className="text-2xl font-bold">{liveMetrics.tabSwitches}</p>
+              </div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Idle Time</p>
+                <p className="text-2xl font-bold">
+                  {liveMetrics.idleTime < 60 
+                    ? `${liveMetrics.idleTime}s` 
+                    : `${Math.floor(liveMetrics.idleTime / 60)}m ${liveMetrics.idleTime % 60}s`}
+                </p>
+              </div>
+            </div>
+            <div className="text-center p-3 bg-primary/10 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                AI analyzing your focus behavior in real time…
+              </p>
+            </div>
           </Card>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -221,6 +301,11 @@ const FocusSession = () => {
             <Card className="p-6 flex flex-col justify-center">
               <h3 className="text-lg font-semibold mb-4">AI Feedback</h3>
               <AIMotivation message={aiMessage || undefined} voiceUrl={voiceUrl || undefined} />
+              {aiMessage && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  AI analyzing your focus behavior in real time…
+                </p>
+              )}
             </Card>
           </div>
         </div>

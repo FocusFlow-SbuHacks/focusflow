@@ -68,7 +68,25 @@ const Progress = () => {
           const hour = analyticsData.bestHour;
           const period = hour >= 12 ? 'PM' : 'AM';
           const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-          const insights = `You focused best in the ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, particularly between ${displayHour}-${displayHour + 1} ${period}. Your average focus score is ${Math.round(analyticsData.averageScore)}%. Try scheduling your most demanding tasks during your peak hours to maximize productivity.`;
+          const avgScore = Math.round(analyticsData.averageScore);
+          
+          // Calculate improvement
+          const sessions = await apiClient.getSessionHistory(userData._id, 100);
+          let improvementText = "";
+          if (sessions.length >= 5) {
+            const recent5 = sessions.slice(0, 5);
+            const older5 = sessions.slice(5, 10);
+            if (older5.length > 0) {
+              const recentAvg = recent5.reduce((sum: number, s: any) => sum + (s.averageFocusScore || 0), 0) / recent5.length;
+              const olderAvg = older5.reduce((sum: number, s: any) => sum + (s.averageFocusScore || 0), 0) / older5.length;
+              const improvement = recentAvg - olderAvg;
+              if (improvement > 0) {
+                improvementText = ` Your focus score has improved by ${Math.round(improvement)}% this week.`;
+              }
+            }
+          }
+          
+          const insights = `Your average focus over the last 5 sessions is ${avgScore}%.${improvementText} You focused best in the ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, particularly between ${displayHour}-${displayHour + 1} ${period}. Try studying between ${displayHour}-${displayHour + 1} ${period} — your attention is highest then.`;
           setAiInsights(insights);
         } else {
           setAiInsights("Start tracking your focus sessions to see personalized insights and recommendations based on your productivity patterns.");
@@ -143,9 +161,21 @@ const Progress = () => {
             </div>
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-primary">AI Insights</h3>
-              <p className="text-foreground leading-relaxed">
-                {aiInsights || "Start tracking your focus sessions to see personalized insights and recommendations based on your productivity patterns."}
-              </p>
+              <div className="space-y-2">
+                {analytics?.averageScore && (
+                  <p className="text-foreground leading-relaxed">
+                    Your average focus over the last 5 sessions is {Math.round(analytics.averageScore)}%.
+                  </p>
+                )}
+                {analytics?.bestHour !== null && (
+                  <p className="text-foreground leading-relaxed">
+                    You focused best during morning sessions.
+                  </p>
+                )}
+                <p className="text-foreground leading-relaxed">
+                  {aiInsights || "Start tracking your focus sessions to see personalized insights and recommendations based on your productivity patterns."}
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Generated based on your last 7 days of activity
               </p>

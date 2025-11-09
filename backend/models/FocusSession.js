@@ -36,6 +36,14 @@ const focusSessionSchema = new mongoose.Schema({
     enum: ['active', 'completed', 'paused', 'cancelled'],
     default: 'active'
   },
+  task: {
+    type: String,
+    default: ''
+  },
+  mood: {
+    type: String,
+    default: '😊'
+  },
   focusDataPoints: [{
     timestamp: Date,
     typingSpeed: Number, // keys per minute

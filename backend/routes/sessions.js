@@ -6,7 +6,7 @@ const User = require('../models/User');
 // Create a new focus session
 router.post('/create', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, task, mood, duration } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
@@ -25,7 +25,10 @@ router.post('/create', async (req, res) => {
     const session = new FocusSession({
       userId,
       startTime: new Date(),
-      status: 'active'
+      status: 'active',
+      task: task || '',
+      mood: mood || '😊',
+      duration: duration ? duration * 60 : 25 * 60 // Convert minutes to seconds
     });
 
     await session.save();

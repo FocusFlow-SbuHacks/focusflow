@@ -61,10 +61,15 @@ export const AIMotivation = ({ message, voiceUrl }: AIMotivationProps) => {
       </div>
       <div className="space-y-4">
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-primary">AI Motivation</h3>
+          <h3 className="mb-2 text-sm font-semibold text-primary">AI Feedback</h3>
           <p className="text-sm leading-relaxed text-foreground">
             {displayMessage}
           </p>
+          {message && (
+            <p className="text-xs text-muted-foreground mt-2 italic">
+              AI analyzing your focus behavior in real time…
+            </p>
+          )}
         </div>
         {voiceUrl ? (
           <Button

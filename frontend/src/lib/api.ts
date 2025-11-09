@@ -45,6 +45,8 @@ export interface FocusSession {
   maxFocusScore: number;
   minFocusScore: number;
   status: 'active' | 'completed' | 'paused' | 'cancelled';
+  task?: string;
+  mood?: string;
   focusDataPoints?: FocusDataPoint[];
 }
 
@@ -117,10 +119,10 @@ class ApiClient {
   }
 
   // Session endpoints
-  async createSession(userId: string): Promise<FocusSession> {
+  async createSession(userId: string, task?: string, mood?: string, duration?: number): Promise<FocusSession> {
     return this.request<FocusSession>('/sessions/create', {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId, task, mood, duration }),
     });
   }
 

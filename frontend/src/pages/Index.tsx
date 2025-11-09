@@ -5,6 +5,7 @@ import { FocusGauge } from "@/components/dashboard/FocusGauge";
 import { AIMotivation } from "@/components/dashboard/AIMotivation";
 import { SessionControls } from "@/components/dashboard/SessionControls";
 import { SessionSummary } from "@/components/dashboard/SessionSummary";
+import { SessionSetup } from "@/components/dashboard/SessionSetup";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Navigation } from "@/components/Navigation";
@@ -32,6 +33,7 @@ const Index = () => {
   const [sessionCount, setSessionCount] = useState(0);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const [showSessionSetup, setShowSessionSetup] = useState(false);
 
   // Poll for active session updates to get latest focus score
   useEffect(() => {
@@ -172,13 +174,31 @@ const Index = () => {
     initializeUser();
   }, [isAuthenticated, user, isLoading]);
 
+  const [sessionSummaryData, setSessionSummaryData] = useState<{
+    task?: string;
+    duration?: number;
+    idleTime?: number;
+    aiMessage?: string;
+  } | null>(null);
+
   // Handle session end from URL params
   useEffect(() => {
     const session = searchParams.get("session");
     const score = searchParams.get("score");
+    const task = searchParams.get("task");
+    const duration = searchParams.get("duration");
+    const idleTime = searchParams.get("idleTime");
+    const aiMessage = searchParams.get("aiMessage");
+    
     if (session === "ended" && score) {
       setShowSummary(true);
       setLastSessionScore(parseInt(score));
+      setSessionSummaryData({
+        task: task || undefined,
+        duration: duration ? parseInt(duration) : undefined,
+        idleTime: idleTime ? parseInt(idleTime) : undefined,
+        aiMessage: aiMessage || undefined,
+      });
       setSearchParams({});
       
       // Refresh data
@@ -195,7 +215,24 @@ const Index = () => {
   }, [searchParams, setSearchParams, dbUser]);
 
   const handleSessionStart = () => {
-    navigate("/focus-session");
+    if (sessionStatus === "idle") {
+      setShowSessionSetup(true);
+    } else {
+      navigate("/focus-session");
+    }
+  };
+
+  const handleSessionSetupComplete = async (config: { task: string; duration: number; mood: string }) => {
+    if (!dbUser) return;
+    
+    try {
+      await apiClient.createSession(dbUser._id, config.task, config.mood, config.duration);
+      setShowSessionSetup(false);
+      navigate("/focus-session");
+    } catch (error) {
+      console.error("Error creating session:", error);
+      toast.error("Failed to start session");
+    }
   };
 
   const handleSessionPause = async () => {
@@ -249,6 +286,9 @@ const Index = () => {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">FocusFlow</h1>
               <p className="text-sm text-muted-foreground">AI-Powered Productivity Dashboard</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+                FocusFlow tracks your study concentration using typing, tab switches, and idle time — giving you a real-time Focus Score.
+              </p>
             </div>
             <Navigation />
           </div>
@@ -258,7 +298,15 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-6">
-            {showSummary && <SessionSummary score={lastSessionScore} />}
+            {showSummary && (
+              <SessionSummary 
+                score={lastSessionScore}
+                task={sessionSummaryData?.task}
+                duration={sessionSummaryData?.duration}
+                idleTime={sessionSummaryData?.idleTime}
+                aiMessage={sessionSummaryData?.aiMessage}
+              />
+            )}
             
             <div>
               <h2 className="mb-4 text-xl font-semibold">Today's Overview</h2>
@@ -289,15 +337,21 @@ const Index = () => {
 
           {/* Center Column - Focus Gauge */}
           <div className="space-y-6">
-            <Card className="p-8">
-              <FocusGauge score={focusScore} status={sessionStatus} />
-            </Card>
-            <SessionControls
-              status={sessionStatus}
-              onStart={handleSessionStart}
-              onPause={handleSessionPause}
-              onEnd={handleSessionEnd}
-            />
+            {showSessionSetup ? (
+              <SessionSetup onStart={handleSessionSetupComplete} />
+            ) : (
+              <>
+                <Card className="p-8">
+                  <FocusGauge score={focusScore} status={sessionStatus} />
+                </Card>
+                <SessionControls
+                  status={sessionStatus}
+                  onStart={handleSessionStart}
+                  onPause={handleSessionPause}
+                  onEnd={handleSessionEnd}
+                />
+              </>
+            )}
           </div>
 
           {/* Right Column - Analytics */}
